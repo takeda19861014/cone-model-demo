@@ -12,8 +12,8 @@ Based on cone_spiral.ggb (2026-09-07)
 
 操作:
     - routeAB      : 0〜8
-                     0〜4: outward  O → P4
-                     4〜8: inward   P4 → O
+                     0〜4: inward   P4 → O
+                     4〜8: outward  O → P4
                      往路・復路は同一の螺旋軌道
 
     - Elev         : 上下の視点角度
@@ -318,30 +318,31 @@ def u_b1_in_ab(s):
 # 往路と復路は同じ幾何学的軌道。
 # =============================================================================
 
-def outward_position(route):
+def _path_O_to_P4(s):
+    """O -> P1 -> P2 -> P3 -> P4 の幾何軌道 (s: 0〜4)。"""
 
     if not (
-        0.0 <= route <= 4.0
+        0.0 <= s <= 4.0
     ):
         return None
 
-    if np.isclose(route, 0.0):
+    if np.isclose(s, 0.0):
         return O.copy()
 
-    if route <= 1:
-        t = u_b1_e(route)
+    if s <= 1:
+        t = u_b1_e(s)
         w = 1
 
-    elif route <= 2:
-        t = u_b2_e(route)
+    elif s <= 2:
+        t = u_b2_e(s)
         w = 2
 
-    elif route <= 3:
-        t = u_b3_e(route)
+    elif s <= 3:
+        t = u_b3_e(s)
         w = 3
 
     else:
-        t = u_b4_e(route)
+        t = u_b4_e(s)
         w = 4
 
     return spiral_point(
@@ -350,17 +351,31 @@ def outward_position(route):
     )
 
 
+# 順序入れ替え版:
+#   route 0〜4 : inward   P4 → O
+#   route 4〜8 : outward  O → P4
+
 def inward_position(route):
+
+    if not (
+        0.0 <= route <= 4.0
+    ):
+        return None
+
+    return _path_O_to_P4(
+        4.0 - route
+    )
+
+
+def outward_position(route):
 
     if not (
         4.0 < route <= 8.0
     ):
         return None
 
-    mirrored = 8.0 - route
-
-    return outward_position(
-        mirrored
+    return _path_O_to_P4(
+        route - 4.0
     )
 
 
@@ -406,41 +421,25 @@ def make_route_curve(position_func, start, end, n=1600):
 
 
 def make_aout_curve(n=1600):
+    # outward: route 4〜8 (O → P4)
     return make_route_curve(
         outward_position,
+        4.0 + 1e-8,
+        8.0,
+        n
+    )
+
+
+def make_bin_curve(n=1600):
+    # inward: route 0〜4 (P4 → O)
+    return make_route_curve(
+        inward_position,
         0.0,
         4.0,
         n
     )
 
 
-def make_bin_curve(n=1600):
-
-    routes = np.linspace(
-        4.0 + 1e-8,
-        8.0,
-        n
-    )
-
-    points = [P4.copy()]
-
-    for r in routes:
-
-        p = inward_position(
-            float(r)
-        )
-
-        if p is not None:
-            points.append(
-                np.asarray(
-                    p,
-                    dtype=float
-                )
-            )
-
-    return np.array(
-        points
-    )
 # =============================================================================
 # 推論モデル
 # =============================================================================
@@ -1077,7 +1076,9 @@ def main():
     # routeAB 語彙点
     # =========================================================================
 
-    a0 = a_out_position(0.0)
+    # 順序入れ替え後は route=0 で outward が None になるため、
+    # 初期表示位置は O を使う(直後の update_route で正しく更新される)。
+    a0 = O
 
     a_artist = ax.scatter(
         *a0,
@@ -1451,17 +1452,17 @@ def main():
 
         if r < 4:
             status.set_text(
-                f'outward: O → P4   routeAB={r:.2f}'
+                f'inward: P4 → O   routeAB={r:.2f}'
             )
 
         elif np.isclose(r, 4.0):
             status.set_text(
-                'P4: 同一螺旋上で移動方向を反転'
+                'O: 同一螺旋上で移動方向を反転'
             )
 
         else:
             status.set_text(
-                f'inward: P4 → O   routeAB={r:.2f}'
+                f'outward: O → P4   routeAB={r:.2f}'
             )
 
         fig.canvas.draw_idle()
